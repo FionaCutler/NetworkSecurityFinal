@@ -8,6 +8,7 @@
 
 import Foundation
 import BigInteger
+import CryptoSwift
 
 public class SureCommCrypto {
 
@@ -22,10 +23,14 @@ public class SureCommCrypto {
         if temp.characters.count % 2 == 1{
             temp = "0" + temp
         }
-        var arr = [UInt8](count:hex.characters.count/2,repeatedValue:0)
+        var arr = [UInt8](count:temp.characters.count/2,repeatedValue:0)
         for var i = 0; i < temp.characters.count; i+=2{
-            //arr[i] = UInt8(strtoul(, nil, 16))
-            
+            let leftIndex = temp.startIndex.advancedBy(i)
+            let rightIndex = temp.startIndex.advancedBy(i+1)
+
+            let leftDigit = temp[leftIndex]
+            let rightDigit = temp[rightIndex]
+            arr[i/2] = UInt8(String(leftDigit),radix:16)!*16 + UInt8(String(rightDigit),radix:16)!
         }
         return arr
     }
@@ -71,6 +76,10 @@ public class SureCommCrypto {
         return x
     }
     
+    public static func xor(a:String,b:String) -> String {
+        return BigInteger(a)!.bitwiseXor(BigInteger(b)!).asString
+    }
+    
     public static func bitcount(i:BigInteger) -> Int32{
         var count:Int32 = 0
         var temp = i
@@ -81,4 +90,20 @@ public class SureCommCrypto {
         return count
     }
 
+    public static func encrypt(text:String, encryptKey:[UInt8], iv:[UInt8],integrityKey:[UInt8]) -> String{
+        let textBytes = [UInt8](text.utf8)
+        let mac: [UInt8] = try! Authenticator.Poly1305(key: integrityKey).authenticate(textBytes)
+        let textWithMac = NSData(bytes: textBytes).base64EncodedStringWithOptions(NSDataBase64EncodingOptions.Encoding64CharacterLineLength) + "\u{001b}" + NSData(bytes: mac).base64EncodedStringWithOptions(NSDataBase64EncodingOptions.Encoding64CharacterLineLength)
+        let bytesWithMac = [UInt8](textWithMac.utf8)
+        var encrypted:[UInt8] = []
+        do{
+            encrypted = try AES(key: encryptKey, iv: iv, blockMode: .CBC).encrypt(bytesWithMac, padding: PKCS7())
+        }
+        catch {
+            // some error
+        }
+        return NSData(bytes: encrypted).base64EncodedStringWithOptions(NSDataBase64EncodingOptions.Encoding64CharacterLineLength)
+    }
+    
+    
 }
